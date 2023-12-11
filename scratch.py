@@ -108,6 +108,18 @@ class loss:
         self.values = -self.target/self.pred #this is the derivative of catagorical cross entropy loss
         self.output = self.values/self.pred # to normalize them this will sava us from changing the learning rate every stape. 
         return self.output
+    def binary_cross_entropy_loss(self):
+        clipped_pred = np.clip(self.pred, 1e-7, 1 - 1e-7) # we clipped thr zero values to avoid a run time error which is the zero logarithm error
+        self.output = -(self.target * np.log(self.pred)) + (1 - self.target) * np.log(1 - self.pred)
+        self.output = np.mean(self.output, axis= -1)
+        return self.output
+    def binary_cross_entropy_backward(self, dvalues):
+        samples = len(dvalues)
+        outputs = len(dvalues[0])
+        clipped_dvalues = np.clip(dvalues, 1e-7, 1 - 1e-7)
+        self.dinputs = -(self.target / clipped_dvalues - (1 - self.target /1 - clipped_dvalues)) / outputs
+        self.dinputs = self.dinputs / samples
+
 class derivative_softmax_crossEntropy:
         def __init__(self, Relu_output,target) :
             self.target = target
