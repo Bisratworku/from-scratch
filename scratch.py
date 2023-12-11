@@ -49,7 +49,10 @@ class activation:
         step[step <= 0] = 0
         return step
     def sigmoid(self):
-        return 1/(1 + np.exp(-self.output))
+        self.sigmoid =  1/(1 + np.exp(-self.output))
+        return self.sigmoid
+    def sigmoid_backward(self, dvalues):
+        self.dinputs = dvalues * (self.sigmoid * (1 - self.sigmoid))
     def RELU(self):
        self.value = np.array(self.output)
        self.value[self.value < 1] = 0
@@ -220,6 +223,14 @@ class Adam:
         layer.bias += -self.current_learning_rate * bias_momentem_corrected/(np.sqrt(bias_catch_corrected) + self.norm)
     def after_update_params(self):
         self.step += 1
+class dropOut:
+    def __init__(self , rate : float = 0.5):
+        self.rate = 1 - rate
+    def forward(self, input):
+        self.bernouli = np.random.binomial(1, self.rate, input.shape)/self.rate
+        self.output = input * self.bernouli
+    def backward(self, dinputs):
+        self.doutput = self.bernouli * dinputs
 class accuracy:
     def __init__(self , softmax_output, y):
         self.sotmax_output = softmax_output
