@@ -4,8 +4,8 @@ import numpy as np
 import nnfs
 from nnfs.datasets import spiral_data
 nnfs.init()
-X,y = spiral_data(samples = 100, classes = 3)
-
+X,y = spiral_data(samples = 100, classes = 2)
+y = y.reshape(-1, 1) 
 #=nb
 class layer:
     #  this class will help us make layers of neural nerworks automaticaly it will be initialyzed by how much input we have and how many neurons we want for each layer the weights are random numbers that have the shape the number of inputs by the number of neurons we want. 
@@ -106,19 +106,18 @@ class loss:
             #duplicated to match the number elements in [self.target] then the elements in [self.target] will be used as a index of 1.
 
         self.values = -self.target/self.pred #this is the derivative of catagorical cross entropy loss
-        self.output = self.values/self.pred # to normalize them this will sava us from changing the learning rate every stape. 
+        self.output = self.values/len(self.pred) # to normalize them this will sava us from changing the learning rate every stape. 
         return self.output
     def binary_cross_entropy_loss(self):
         clipped_pred = np.clip(self.pred, 1e-7, 1 - 1e-7) # we clipped thr zero values to avoid a run time error which is the zero logarithm error
         self.output = -(self.target * np.log(self.pred)) + (1 - self.target) * np.log(1 - self.pred)
-        self.output = np.mean(self.output, axis= -1)
+        self.output = np.mean(self.output)
         return self.output
-    def binary_cross_entropy_backward(self, dvalues):
-        samples = len(dvalues)
-        outputs = len(dvalues[0])
-        clipped_dvalues = np.clip(dvalues, 1e-7, 1 - 1e-7)
+    def backward_binary_cross(self):
+        outputs = len(self.pred[0])
+        clipped_dvalues = np.clip(self.pred, 1e-7, 1 - 1e-7)
         self.dinputs = -(self.target / clipped_dvalues - (1 - self.target /1 - clipped_dvalues)) / outputs
-        self.dinputs = self.dinputs / samples
+        self.dinputs = self.dinputs / len(self.pred)
 
 class derivative_softmax_crossEntropy:
         def __init__(self, Relu_output,target) :
@@ -254,8 +253,11 @@ class accuracy:
         correct = np.mean(pred == self.label)
         return correct
 
-
-
+l1 = layer(2, 64, weight_regularaization_l2=5e-4, bias_regularizatiob_l2 = 5e-4 )
+l1.forward(X)
+a1 = activation(l1.output)
+l2 = layer(64,1)
+l2.forward()
 
 
 
