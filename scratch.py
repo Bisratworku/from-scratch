@@ -9,7 +9,7 @@ y = y.reshape(-1, 1)
 #=nb
 class layer:
     #  this class will help us make layers of neural nerworks automaticaly it will be initialyzed by how much input we have and how many neurons we want for each layer the weights are random numbers that have the shape the number of inputs by the number of neurons we want. 
-    def __init__(self, inputs, neurons, weight_regularaization_l1 = 0, weight_regularaization_l2 = 0, bias_regularaization_l1 = 0, bias_regularizatiob_l2 = 0):
+    def __init__(self, inputs, neurons, weight_regularaization_l1 = 0, weight_regularaization_l2 = 0, bias_regularaization_l1 = 0, bias_regularization_l2 = 0):
         self.data = inputs
         try:
             self.weight =  np.random.randn(self.data, neurons)
@@ -19,7 +19,7 @@ class layer:
         self.weight_regularization_l1 = weight_regularaization_l1
         self.weight_regularization_l2 = weight_regularaization_l2
         self.bias_regularization_l1 = bias_regularaization_l1
-        self.bias_regularization_l2 = bias_regularizatiob_l2
+        self.bias_regularization_l2 = bias_regularization_l2
     def forward(self, data):
         self.input = data
         self.output = np.dot(self.input,self.weight) + self.bias
@@ -40,99 +40,92 @@ class layer:
             self.dbias += self.bias_regularization_l1 * dl1
         if self.bias_regularization_l2 > 0:
             self.dbias += self.bias_regularization_l2 * self.bias
-class activation:
-    def __init__(self , output):
-        self.output = output
-    def step(self):
-        step = np.array(self.output)
-        step[step > 0] = 1
-        step[step <= 0] = 0
-        return step
-    def sigmoid(self):
-        self.sigmoid =  1/(1 + np.exp(-self.output))
-        return self.sigmoid
-    def sigmoid_backward(self, dvalues):
-        self.dinputs = dvalues * (self.sigmoid * (1 - self.sigmoid))
-    def RELU(self):
-       self.value = np.array(self.output)
-       self.value[self.value < 1] = 0
-       return self.value
-    def RELU_backward(self,dvalue):
-        self.dinputs = dvalue.copy()
-        self.dinputs[self.value < 1] = 0
-    def softmax(self):
-        exp_value = np.exp(self.output - np.max(self.output, axis = 1, keepdims = True))
-        self.output =  exp_value/np.sum(exp_value, axis = 1 , keepdims = True)
-        return self.output
-    def softmax_backward(self, dvalues):
-        dinputs = np.empty_like(dvalues)
-        for i , (sample_output,sample_derivative) in enumerate(zip(self.output, dvalues)):
-            kronicer_delta = np.diagflat(sample_output.reshape(-1,1))
-            jacobian_matrics = kronicer_delta - np.dot(sample_output,sample_output.T)
-            dinputs[i] = np.dot(jacobian_matrics,sample_derivative)
-        return dinputs
-
+class Activation_ReLU:
+    def forward(self, inputs):
+        self.inputs = inputs
+        self.output = np.maximum(0,inputs)
+    def backwarx(self, dvalues):
+        self.dinputs = dvalues.copy()
+        self.dinputs[self.inputs <= 0] = 0
+class Activation_Softmax:
+    def forward(self, inputs):
+        self.inputs = inputs
+        exp_values = np.exp(inputs - np.max(inputs, axis= 1, keepdims= True))
+        probabilities = exp_values / np.sum(exp_values, axis= 1, keepdims = True)
+        self.output = probabilities
+    def backward(self, dvalues):
+        self.dinputs = np.empty_like(dvalues)
+        for index , (single_output, single_dvalues) in enumerate(zip(self.output, dvalues)):
+            single_output = single_output.reshape(-1, 1)
+            jacobian_matrics = np.diagflat(single_output) - np.dot(single_output, single_output.T)
+            self.dinputs[index] = np.dot(jacobian_matrics, single_dvalues)
+class Activation_Sigmoid:
+    def forward(self, inputs):
+        self.inputs = inputs
+        self.output = 1 / (1 + np.exp(-inputs))
+    def backward(self, dvalues):
+        self.dinputs = dvalues * (1 - self.output) * self.output
 class loss:
-    def __init__(self,pred,target) :
-        self.pred = pred # this is the output of the softmax activation 
-        self.target = target #this the true lables
-
     def regularization_loss(self, layer):
-        self.regularization = 0
-        if layer.weight_regularization_l1 > 0:
-            self.regularization += layer.weight_regularization_l1 * np.sum(abs(layer.weight))
-        if layer.weight_regularization_l2 > 0:
-            self.regularization += layer.weight_regularization_l2 * np.sum(layer.weight * layer.weight)
-        if layer.bias_regularization_l1 > 0 :
-            self.regularization += layer.bias_regularization_l1 * np.sum(abs(layer.bias))
-        if layer.bias_regularization_l2 > 0:
-            self.regularization += layer.bias_regularization_l2 * np.sum(layer.bias * layer.bias)
-        return self.regularization
-    def catagorical_crossentropy(self):
-        if len(self.target.shape) == 1: #if the labels are not one hot encoded 
-            elem = self.pred[[range(len(self.pred))],[self.target]] 
-            clipped = np.clip(elem, 1e-7, 1- 1e-7)
-            self.output = np.mean(-np.log(clipped))
-            return self.output
-        elif len(self.target.shape) == 2:
-            sum = np.sum(self.pred * self.target , axis = 1)
-            clip = np.clip(sum, 1e-7, 1 - 1e-7)
-            self.output = np.mean(-np.log(clip))
-            return self.output
-    def catagory_backward(self):
-        label = len(self.pred[0]) #we use this to get the number of elements in the first #array we use it to one hot encode vectors
-        if len(self.target.shape) == 1: #if it is not one hot encoded
-            self.target = np.eye(label) [self.target]  # we hot code encode it what this will do is first we create a diagonal vector with shape equvalent to [label] and the vector will be 
-            #duplicated to match the number elements in [self.target] then the elements in [self.target] will be used as a index of 1.
-
-        self.values = -self.target/self.pred #this is the derivative of catagorical cross entropy loss
-        self.output = self.values/len(self.pred) # to normalize them this will sava us from changing the learning rate every stape. 
-        return self.output
-    def binary_cross_entropy_loss(self):
-        clipped_pred = np.clip(self.pred, 1e-7, 1 - 1e-7) # we clipped thr zero values to avoid a run time error which is the zero logarithm error
-        self.output = -(self.target * np.log(self.pred)) + (1 - self.target) * np.log(1 - self.pred)
-        self.output = np.mean(self.output)
-        return self.output
-    def backward_binary_cross(self):
-        outputs = len(self.pred[0])
-        clipped_dvalues = np.clip(self.pred, 1e-7, 1 - 1e-7)
-        self.dinputs = -(self.target / clipped_dvalues - (1 - self.target /1 - clipped_dvalues)) / outputs
-        self.dinputs = self.dinputs / len(self.pred)
-
+        regularization_loss = 0
+        if layer.weight_regularaization_l1 > 0 :
+            regularization_loss += layer.weight_regularaization_l1 * np.sum(np.abs(layer.weight))
+        if layer.weight_regularaization_l2 > 0 :
+            regularization_loss += layer.weight_regularaization_l2 * np.sum(layer.weight * layer.weight)
+        if layer.bias_regularaization_l1 > 0:
+            regularization_loss += layer.bias_regularaization_l1 * np.sum(np.abs(layer.bias))
+        if layer.bias_regularizatiob_l2 > 0 :
+            regularization_loss += layer.bias_regularizatiob_l2 * np.sum(layer.bias * layer.bias)
+        return regularization_loss
+    def calculate(self, output, y):
+        sample_losses = self.forward(output, y)
+        data_loss = np.mean(sample_losses)
+        return data_loss
+class Loss_CatagoricalCrossEntropy(loss):
+    def forward(self, y_pred, y_true):
+        samples = len(y_pred)
+        y_pred_clipped = np.clip(y_pred, 1e-7, 1 - 1e-7)
+        if len(y_true.shape) == 1 :
+            correct_confidences = y_pred_clipped[range(samples), y_true]
+        elif len(y_true.shape) == 2:
+            correct_confidences = np.sum(y_pred_clipped * y_true, axis=1)
+        negative_log_likelihood = -np.log(correct_confidences)
+        return negative_log_likelihood
+    def backward(self, dvalues, y_true):
+        samples = len(dvalues)
+        labels = len(dvalues[0])
+        if len(y_true.shape) == 1:
+            y_true = np.eye(labels)[y_true]
+        self.dinputs = -y_true / dvalues
+        self.dinputs = self.dinputs / samples
 class derivative_softmax_crossEntropy:
-        def __init__(self, Relu_output,target) :
+        def __init__(self, target) :
             self.target = target
-            self.softmax = activation(Relu_output).softmax()
-            self.loss = loss(self.softmax, target).catagorical_crossentropy()
-        def backward(self):
-            sample = len(self.softmax)
-            if len(self.target.shape) == 2: # if the label is one hot encoded we change them to descrite values
-                self.target = np.argmax(self.target)
-            self.output = self.softmax.copy()  
-            self.output[range(sample) , self.target] -= 1
-            self.output = self.output/sample 
-            return self.output
-
+            self.softmax = Activation_Softmax()
+            self.loss = Loss_CatagoricalCrossEntropy()
+        def forward(self, inputs, y_true):
+            self.softmax.forward(inputs)
+            self.output = self.softmax.output
+            return self.loss.calculate(self.output, y_true)
+        def backward(self, dvalues, y_true):
+            samples = len(dvalues)
+            if len(y_true.shape) == 2:
+                y_true = np.argmax(y_true, axis= 1)
+            self.dinputs = dvalues.copy()
+            self.dinputs[range(samples), y_true] -= 1
+            self.dinputs = self.dinputs / samples
+class loss_binatyCrossentropy(loss):
+    def forward(self, y_pred, y_true):
+        y_pred_clipped = np.clip(y_pred, 1e-7, 1- 1e-7)
+        sample_losses = -(y_true * np.log(y_pred_clipped) + (1 - y_true) * np.log(1 - y_pred_clipped))
+        sample_losses = np.mean(sample_losses, axis= -1)
+        return sample_losses
+    def backward(self, dvalues, y_true):
+        samples = len(dvalues)
+        outputs = len(dvalues[0])
+        clipped_dvalues = np.clip(dvalues, 1e-7, 1 - 1e-7)
+        self.dinputs = -(y_true / clipped_dvalues - (1 - y_true) / (1 - clipped_dvalues)) / outputs
+        self.dinputs = self.dinputs / samples
 class optimizerSGD:
     def __init__(self, learning_rate = 1. , decay = 0., momentem = 0.):
         self.learning_rate = learning_rate
@@ -237,9 +230,10 @@ class Adam:
 class dropOut:
     def __init__(self , rate : float = 0.5):
         self.rate = 1 - rate
-    def forward(self, input):
-        self.bernouli = np.random.binomial(1, self.rate, input.shape)/self.rate
-        self.output = input * self.bernouli
+    def forward(self, inputs):
+        self.inputs = inputs
+        self.bernouli = np.random.binomial(1, self.rate, size = inputs.shape)/self.rate
+        self.output = inputs * self.bernouli
     def backward(self, dinputs):
         self.doutput = self.bernouli * dinputs
 class accuracy:
