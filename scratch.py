@@ -91,7 +91,7 @@ class Loss_CatagoricalCrossEntropy(loss):
             correct_confidences = np.sum(y_pred_clipped * y_true, axis=1)
         negative_log_likelihood = -np.log(correct_confidences)
         return negative_log_likelihood
-    def backward(self, dvalues, y_true):
+    def backward(self, dvalues, y_true): # dvalues stands for the output of the actvation function in this case that activation function is softmax 
         samples = len(dvalues)
         labels = len(dvalues[0])
         if len(y_true.shape) == 1:
@@ -107,24 +107,43 @@ class derivative_softmax_crossEntropy:
             self.softmax.forward(inputs)
             self.output = self.softmax.output
             return self.loss.calculate(self.output, y_true)
-        def backward(self, dvalues, y_true):
+        def backward(self, dvalues, y_true): # dvalues stands for the output of the activation function in this case that activation function is sigmoid 
             samples = len(dvalues)
             if len(y_true.shape) == 2:
                 y_true = np.argmax(y_true, axis= 1)
             self.dinputs = dvalues.copy()
             self.dinputs[range(samples), y_true] -= 1
             self.dinputs = self.dinputs / samples
-class loss_binatyCrossentropy(loss):
+class loss_binaryCrossentropy(loss):
     def forward(self, y_pred, y_true):
         y_pred_clipped = np.clip(y_pred, 1e-7, 1- 1e-7)
         sample_losses = -(y_true * np.log(y_pred_clipped) + (1 - y_true) * np.log(1 - y_pred_clipped))
-        sample_losses = np.mean(sample_losses, axis= -1)
+        sample_losses = np.mean(sample_losses)
         return sample_losses
     def backward(self, dvalues, y_true):
         samples = len(dvalues)
         outputs = len(dvalues[0])
         clipped_dvalues = np.clip(dvalues, 1e-7, 1 - 1e-7)
         self.dinputs = -(y_true / clipped_dvalues - (1 - y_true) / (1 - clipped_dvalues)) / outputs
+        self.dinputs = self.dinputs / samples
+class mse:
+    def forward(self, y_pred, y_true):
+        
+        self.output = np.mean((y_pred - y_true) **2, axis= -1)
+        return self.output
+    def backward(self, dvalues, y_true):
+        samples =   len(dvalues)
+        output = len(dvalues[0])
+        self.dinputs = -2 * (y_true - dvalues)/output
+        self.dinputs = self.dinputs / samples
+class mae:
+    def forward(self, y_pred , y_true):
+        self.output = np.mean(np.abs(y_pred - y_true), axis= -1)
+        return self.output
+    def backward(self, dvalues, y_true):
+        samples = len(dvalues)
+        output = len(dvalues[0])
+        self.dinputs = np.sign(y_true - dvalues) / output # np.sign will return 1 if the number is greater than 0 and -1 if the number is less than 0 
         self.dinputs = self.dinputs / samples
 class optimizerSGD:
     def __init__(self, learning_rate = 1. , decay = 0., momentem = 0.):
@@ -246,12 +265,6 @@ class accuracy:
             self.label = np.argmax(self.label, axis=1)
         correct = np.mean(pred == self.label)
         return correct
-
-l1 = layer(2, 64, weight_regularaization_l2=5e-4, bias_regularizatiob_l2 = 5e-4 )
-l1.forward(X)
-a1 = activation(l1.output)
-l2 = layer(64,1)
-l2.forward()
 
 
 
