@@ -1,7 +1,4 @@
 import numpy as np
-import nnfs
-from nnfs.datasets import spiral_data
-nnfs.init()
 class Layer_Dense:
     def __init__(self, n_inputs, n_neurons,
                  weight_regularizer_l1=0, weight_regularizer_l2=0,
@@ -366,21 +363,3 @@ class Model:
         self.loss.backward(output, y)
         for layer in reversed(self.layers):
             layer.backward(layer.next.dinputs)
-
-X, y = spiral_data(samples=1000, classes=3)
-X_test, y_test = spiral_data(samples=100, classes=3)
-model = Model()
-model.add(Layer_Dense(2, 64, weight_regularizer_l2=5e-4,
-                              bias_regularizer_l2=5e-4))
-model.add(Activation_ReLU())
-model.add(Layer_Dropout(0.1))
-model.add(Layer_Dense(64, 3))
-model.add(Activation_Softmax())
-model.set(
-    loss=Loss_CategoricalCrossentropy(),
-    optimizer=Optimizer_Adam(learning_rate=0.05, decay=5e-5),
-    accuracy=Accuracy_Categorical()
-)
-model.finalize()
-model.train(X, y, validation_data=(X_test, y_test),
-            epochs=10000, print_every=100)
