@@ -1,4 +1,6 @@
 import numpy as np
+import pickle
+import copy
 class Layer_Dense:
     def __init__(self, n_inputs, n_neurons,
                  weight_regularizer_l1=0, weight_regularizer_l2=0,
@@ -29,6 +31,11 @@ class Layer_Dense:
         if self.bias_regularizer_l2 > 0:
             self.dbiases += 2 * self.bias_regularizer_l2 * self.biases
         self.dinputs = np.dot(dvalues, self.weights.T)
+    def get_parameters(self):
+        return self.weights, self.biases
+    def set_parameters(self, weight, bias):
+        self.weights = weight
+        self.biases = bias
 class Layer_Dropout:
     def __init__(self, rate):
         self.rate = 1 - rate
@@ -312,10 +319,13 @@ class Model:
         self.softmax_classifier_output = None
     def add(self, layer):
         self.layers.append(layer)
-    def set(self, *, loss, optimizer, accuracy):
-        self.loss = loss
-        self.optimizer = optimizer
-        self.accuracy = accuracy
+    def set(self, *, loss = None, optimizer = None, accuracy = None):
+        if  loss is not None: 
+            self.loss = loss
+        if  optimizer is not None:
+            self.optimizer = optimizer
+        if  accuracy is not None:
+            self.accuracy = accuracy
     def finalize(self):
         self.input_layer = Layer_Input()
         layer_count = len(self.layers)
@@ -336,20 +346,23 @@ class Model:
         self.loss.remember_trainable_layers( self.trainable_layers )
         if isinstance(self.layers[-1], Activation_Softmax) and isinstance(self.loss, Loss_CategoricalCrossentropy):
             self.softmax_classifier_output = Activation_Softmax_Loss_CategoricalCrossentropy()
+        if self.loss is not None:
+            self.loss.remember_trainable_layers(self.trainable_layers)
+    def get_parameters(self):
+        parameters = []
+        for layer in self.trainable_layers:
+            parameters.append(layer.get_parameters())
+        return parameters
+    def set_parameters(self, parameters):
+        for parameter_set, layer in zip(parameters, self.trainable_layers):
+            layer.set_parameters(*parameter_set)
     def train(self, X, y, *, epochs=1, print_every=1,validation_data=None, batch_size = None):
         self.accuracy.init(y)
         train_steps = 1
-        if validation_data is not None:
-            validation_steps = 1
-            X_val, y_val = validation_data
         if batch_size is not None:
             train_steps = len(X) // batch_size
             if train_steps * batch_size < len(X):
                 train_steps += 1
-            if validation_data is not None:
-                validation_steps = len(X_val) // batch_size
-                if validation_steps * batch_size < len(X_val):
-                    validation_steps += 1 
         for epoch in range(1, epochs+1):
             print(f'Epoch {epochs}')
             self.loss.new_pass()
@@ -390,14 +403,7 @@ class Model:
                   f'reg_loss : {epoch_regularization_loss :.3f}, ', 
                   f'lr : {self.optimizer.current_learning_rate}')
             if validation_data is not None:
-                X_val, y_val = validation_data
-                output = self.forward(X_val, training=False)
-                loss = self.loss.calculate(output, y_val)
-                predictions = self.output_layer_activation.predictions(output)
-                accuracy = self.accuracy.calculate(predictions, y_val)
-                print(f'validation, ' +
-                      f'acc: {accuracy:.3f}, ' +
-                      f'loss: {loss:.3f}')
+                self.evaluate(*validation_data, batch_size = batch_size)
     def evaluate(self, X_val, y_val, *, batch_size = None):
                 validation_steps = 1
                 if batch_size is not None:
@@ -422,6 +428,44 @@ class Model:
                 print(f'validation, ' + 
                       f'acc : {validation_accuracy:.3f}, ' +
                       f'loss : {validation_loss :.3f}')
+    def save_parameters(self, path):
+        with open(path, 'wb') as f:
+            pickle.dump(self.get_parameters(), f)
+    def load_parameters(self, path):
+        with open(path, 'rb') as f:
+            self.set_parameters(pickle.loads(f))
+    def save(self,path):
+        model = copy.deepcopy(path)
+        model.loss.new_pass()
+        model.accuracy.new_pass()
+        model.input__layer__.pop('output', None)
+        model.inpur__dict__.pop('dinputs', None)
+        for layer in model.layers:
+            for property in ["inputs", "output", "dinput", "dweight", "dbiases"]:
+                layer.__dict__.pop('dinput, = none')
+        with open(path, 'wb') as f:
+            pickle.dump(model, f)
+    @staticmethod
+    def load(path):
+        with open(path, 'rb') as f:
+            model = pickle.load(f)
+        return model
+    def predict(self, X,* ,batch_size = None):
+        prediction_step = 1
+        if batch_size is not None:
+            prediction_step = len(X) // batch_size
+            if prediction_step * batch_size < len(X):
+                prediction_step += 1
+        output = []
+        for step in range(prediction_step):
+            if batch_size is None:
+                batch_X = X
+            else:
+                batch_X = X[step*batch_size : (step + 1) * batch_size]
+            batch_output = self.forward(batch_X, training = False)
+            output.append(batch_output)
+        return np.vstack(output)
+    
     def forward(self, X, training):
         self.input_layer.forward(X, training)
         for layer in self.layers:
