@@ -175,18 +175,28 @@ class Optimizer_Adam:
 class Loss:
     def regularization_loss(self, layer):
         regularization_loss = 0
-        if layer.weight_regularizer_l1 > 0:
-            regularization_loss += layer.weight_regularizer_l1 * np.sum(np.abs(layer.weights))
-        if layer.weight_regularizer_l2 > 0:
-            regularization_loss += layer.weight_regularizer_l2 * np.sum(layer.weights * layer.weights)
-        if layer.bias_regularizer_l1 > 0:
-            regularization_loss += layer.bias_regularizer_l1 * np.sum(np.abs(layer.biases))
-        if layer.bias_regularizer_l2 > 0:
-                regularization_loss += layer.bias_regularizer_l2 * np.sum(layer.biases *layer.biases)
+        l2_weight = []
+        l2_bias = []
+        l1_weight = []
+        l1_bias = []
+        for Layer in layer:
+            if Layer.weight_regularizer_l1 > 0:
+                l1_weight.append( np.sum(np.abs(Layer.weights)))
+            if Layer.weight_regularizer_l2 > 0:
+                l2_weight.append(np.sum(Layer.weights * Layer.weights))
+            if Layer.bias_regularizer_l1 > 0:
+                l1_bias.append(np.sum(np.abs(Layer.biases)))
+            if Layer.bias_regularizer_l2 > 0:
+                l2_bias.append(np.sum(Layer.biases *Layer.biases))
+            regularization_loss += np.sum(l2_weight) * Layer.weight_regularizer_l2
+            regularization_loss += np.sum(l2_bias) * Layer.bias_regularizer_l2
+            regularization_loss += np.sum(l1_weight) * Layer.weight_regularizer_l1
+            regularization_loss += np.sum(l1_bias) * Layer.bias_regularizer_l1
         return regularization_loss
     def calculate(self, output, y):
         sample_losses = self.forward(output, y)
         data_loss = np.mean(sample_losses)
+        self.output =   data_loss
         return data_loss    
 class Loss_CategoricalCrossentropy(Loss):
     def forward(self, y_pred, y_true):
@@ -197,7 +207,7 @@ class Loss_CategoricalCrossentropy(Loss):
         elif len(y_true.shape) == 2:
             correct_confidences = np.sum( y_pred_clipped * y_true,axis=1)
         negative_log_likelihoods = -np.log(correct_confidences)
-        return negative_log_likelihoods
+        return  negative_log_likelihoods
     def backward(self, dvalues, y_true):
         samples = len(dvalues)
         labels = len(dvalues[0])
@@ -251,5 +261,65 @@ class Loss_MeanAbsoluteError(Loss):
         outputs = len(dvalues[0])
         self.dinputs = np.sign(y_true - dvalues) / outputs
         self.dinputs = self.dinputs / samples
+
+class model:
+    def __init__(self):
+        self.layers = []
+        self.tunable_layers = []
+    def add(self, layer):
+        self.layers.append(layer)
+        if hasattr(layer, 'weights'):
+            self.tunable_layers.append(layer)
+    def set (self,*,loss, optimizer):
+        self.loss = loss
+        self.optimaizer = optimizer
+    def regularization(self):
+        self.regularized = []
+        for tunable_layer in self.tunable_layers:
+            self.regularized.append(self.loss.regularization_loss(tunable_layer))
+        return np.sum(self.regularized)    
+    def forward(self, input, label):
+        self.inputs = input
+        for layer in self.layers:
+            layer.forward(self.inputs)
+            self.inputs = layer.output
+        self.last_layer_output = self.layers[len(self.layers) - 1].output
+        self.calculated_loss = self.loss.calculate(self.last_layer_output, label) + self.loss.regularization_loss(self.tunable_layers) 
+    def backward(self,label):
+        self.loss.backward(self.last_layer_output, label)
+        dinputs =  self.loss.dinputs
+        for layer in reversed(self.layers):
+            layer.backward(dinputs)
+            dinputs = layer.dinputs       
+    def train(self, X, y, * , epoches, print_every = 1):
+        for i in range(epoches):
+            self.forward(X, y)
+            self.backward(y)
+            self.optimaizer.pre_update_params()
+            for tunable_layer in self.tunable_layers:
+                self.optimaizer.update_params(tunable_layer)
+            self.optimaizer.post_update_params()
+            print(f'Epoches = {i},  Loss = {self.calculated_loss:.3f}, Learning_rate = {self.optimaizer.current_learning_rate :.3f}')
+f = np.random.randn(70,2)
+g = np.random.randint(0,2, 70)
+m = model()
+m.add(Layer_Dense(2,90, weight_regularizer_l2 = 0.001, bias_regularizer_l2 = 0.001))
+m.add(Activation_ReLU())
+m.add(Layer_Dropout(0.2))
+m.add(Layer_Dense(90,90, weight_regularizer_l2 = 0.001, bias_regularizer_l2 = 0.001))
+m.add(Activation_ReLU())
+m.add(Layer_Dense(90,90))
+m.add(Activation_ReLU())
+m.add(Layer_Dense(90,3))
+m.add(Activation_Softmax())
+m.set(
+    loss = Loss_CategoricalCrossentropy(),
+    optimizer = Optimizer_Adam(decay = 1e-5)
+      )
+m.train(f,g, epoches = 10000)
+
+
+
+
 
 
