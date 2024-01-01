@@ -1,6 +1,7 @@
 import numpy as np
 import pickle
 import copy
+
 class Layer_Dense:
     def __init__(self, n_inputs, n_neurons,
                  weight_regularizer_l1=0, weight_regularizer_l2=0,
@@ -250,15 +251,5 @@ class Loss_MeanAbsoluteError(Loss):
         outputs = len(dvalues[0])
         self.dinputs = np.sign(y_true - dvalues) / outputs
         self.dinputs = self.dinputs / samples
-
-
-
-
-
-
-
-
-
-
 
 
