@@ -49,6 +49,9 @@ class Activation_ReLU:
     def backward(self, dvalues):
         self.dinputs = dvalues.copy()
         self.dinputs[self.inputs <= 0] = 0
+    def prediction(self):
+        pass
+
 class Activation_Softmax:
     def forward(self, inputs):
         self.inputs = inputs
@@ -215,6 +218,13 @@ class Loss_CategoricalCrossentropy(Loss):
             y_true = np.eye(labels)[y_true]
         self.dinputs = -y_true / dvalues
         self.dinputs = self.dinputs / samples
+    def accuracy(self, pred, target):
+        prediction = np.argmax(pred, axis = 1)
+        if len(target.shape) == 2:
+            target = np.argmax(target, axis = 1)
+        output = np.mean(prediction == target)
+        return output
+        
 class Activation_Softmax_Loss_CategoricalCrossentropy():
     def __init__(self):
         self.activation = Activation_Softmax()
@@ -243,6 +253,10 @@ class Loss_BinaryCrossentropy(Loss):
         clipped_dvalues = np.clip(dvalues, 1e-7, 1 - 1e-7)
         self.dinputs = -(y_true / clipped_dvalues -(1 - y_true) / (1 - clipped_dvalues)) / outputs
         self.dinputs = self.dinputs / samples
+    def accuracy(self, pred, target):
+        prediction = np.round(pred)
+        output = np.mean(prediction == target)
+        return output
 class Loss_MeanSquaredError(Loss):
     def forward(self, y_pred, y_true):
         sample_losses = np.mean((y_true - y_pred)**2, axis=-1)
@@ -252,6 +266,8 @@ class Loss_MeanSquaredError(Loss):
         outputs = len(dvalues[0])
         self.dinputs = -2 * (y_true - dvalues) / outputs
         self.dinputs = self.dinputs / samples
+    def accuracy(self, y_pred, y_true):
+        return  np.mean((y_true - y_pred)**2, axis = -1)
 class Loss_MeanAbsoluteError(Loss):  
     def forward(self, y_pred, y_true):
         sample_losses = np.mean(np.abs(y_true - y_pred), axis=-1)
@@ -261,7 +277,8 @@ class Loss_MeanAbsoluteError(Loss):
         outputs = len(dvalues[0])
         self.dinputs = np.sign(y_true - dvalues) / outputs
         self.dinputs = self.dinputs / samples
-
+    def accuracy(self, y_pred, y_true):
+        return np.mean(np.abs(y_true - y_pred), axis = -1)
 class model:
     def __init__(self):
         self.layers = []
@@ -291,33 +308,26 @@ class model:
         for layer in reversed(self.layers):
             layer.backward(dinputs)
             dinputs = layer.dinputs       
-    def train(self, X, y, * , epoches, print_every = 1):
-        for i in range(epoches):
+    def train(self, X, y, * , epoches, print_every = 1, val_data :tuple = None):
+        for i in range(1,  epoches + 1):
             self.forward(X, y)
             self.backward(y)
             self.optimaizer.pre_update_params()
             for tunable_layer in self.tunable_layers:
                 self.optimaizer.update_params(tunable_layer)
             self.optimaizer.post_update_params()
-            print(f'Epoches = {i},  Loss = {self.calculated_loss:.3f}, Learning_rate = {self.optimaizer.current_learning_rate :.3f}')
-f = np.random.randn(70,2)
-g = np.random.randint(0,2, 70)
-m = model()
-m.add(Layer_Dense(2,90, weight_regularizer_l2 = 0.001, bias_regularizer_l2 = 0.001))
-m.add(Activation_ReLU())
-m.add(Layer_Dropout(0.2))
-m.add(Layer_Dense(90,90, weight_regularizer_l2 = 0.001, bias_regularizer_l2 = 0.001))
-m.add(Activation_ReLU())
-m.add(Layer_Dense(90,90))
-m.add(Activation_ReLU())
-m.add(Layer_Dense(90,3))
-m.add(Activation_Softmax())
-m.set(
-    loss = Loss_CategoricalCrossentropy(),
-    optimizer = Optimizer_Adam(decay = 1e-5)
-      )
-m.train(f,g, epoches = 10000)
-
+            if not epoches % print_every:
+                print(f'Epoches = {i},  Loss = {self.calculated_loss:.3f}, Learning_rate = {self.optimaizer.current_learning_rate :.3f}, Acc = {self.loss.accuracy(self.last_layer_output, y):.3f}')
+        if val_data is not None:
+            data = val_data[0]
+            label = val_data[1]
+            self.forward(data, label)
+            print('Validation result')
+            print(f'Loss = {self.calculated_loss:.3f}, Accuracy = {self.loss.accuracy(self.last_layer_output, y):.3f}')
+    def pridict(self):
+        pass
+f = np.random.randn(70,28*28)
+g = np.random.randint(0,9, 70)
 
 
 
