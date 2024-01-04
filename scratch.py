@@ -283,6 +283,7 @@ class model:
     def __init__(self):
         self.layers = []
         self.tunable_layers = []
+        self.passes = 0
     def add(self, layer):
         self.layers.append(layer)
         if hasattr(layer, 'weights'):
@@ -308,9 +309,18 @@ class model:
         for layer in reversed(self.layers):
             layer.backward(dinputs)
             dinputs = layer.dinputs       
-    def train(self, X, y, * , epoches, print_every = 1, val_data :tuple = None):
+    def batch_shuffle(self, data, label, batch):
+        #keys = np.array(range(len(data.shape[0])))
+        #np.random.shuffle(keys)
+        #data = data[keys]
+        #label = label[keys]
+        data_split = np.array_split(data, batch)
+        label_split = np.array_split(label, batch)
+        return data_split, label_split
+    def train(self, X, y, * , epoches, print_every :int = 1, batch : int= 1):
+        data, label = self.batch_shuffle(X,y,batch)
         for i in range(1,  epoches + 1):
-            self.forward(X, y)
+            self.forward(data[self.passes], label[self.passes])
             self.backward(y)
             self.optimaizer.pre_update_params()
             for tunable_layer in self.tunable_layers:
@@ -318,18 +328,5 @@ class model:
             self.optimaizer.post_update_params()
             if not epoches % print_every:
                 print(f'Epoches = {i},  Loss = {self.calculated_loss:.3f}, Learning_rate = {self.optimaizer.current_learning_rate :.3f}, Acc = {self.loss.accuracy(self.last_layer_output, y):.3f}')
-        if val_data is not None:
-            data = val_data[0]
-            label = val_data[1]
-            self.forward(data, label)
-            print('Validation result')
-            print(f'Loss = {self.calculated_loss:.3f}, Accuracy = {self.loss.accuracy(self.last_layer_output, y):.3f}')
-    def pridict(self):
-        pass
-f = np.random.randn(70,28*28)
-g = np.random.randint(0,9, 70)
-
-
-
-
-
+            self.passes += 1
+        self.passes = 0
