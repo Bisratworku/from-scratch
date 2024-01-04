@@ -321,7 +321,7 @@ class model:
         data, label = self.batch_shuffle(X,y,batch)
         for i in range(1,  epoches + 1):
             self.forward(data[self.passes], label[self.passes])
-            self.backward(y)
+            self.backward(label[self.passes])
             self.optimaizer.pre_update_params()
             for tunable_layer in self.tunable_layers:
                 self.optimaizer.update_params(tunable_layer)
