@@ -284,6 +284,7 @@ class model:
         self.layers = []
         self.tunable_layers = []
         self.passes = 0
+        self.last_layer_output = self.layers[len(self.layers) - 1].output
     def add(self, layer):
         self.layers.append(layer)
         if hasattr(layer, 'weights'):
@@ -301,7 +302,6 @@ class model:
         for layer in self.layers:
             layer.forward(self.inputs)
             self.inputs = layer.output
-        self.last_layer_output = self.layers[len(self.layers) - 1].output
         self.calculated_loss = self.loss.calculate(self.last_layer_output, label) + self.loss.regularization_loss(self.tunable_layers) 
     def backward(self,label):
         self.loss.backward(self.last_layer_output, label)
@@ -318,7 +318,7 @@ class model:
         label_split = np.array_split(label, batch)
         return data_split, label_split
     def train(self, X, y, * , epoches, print_every :int = 1, batch : int= 1):
-        data, label = self.batch_shuffle(X,y,batch)
+        data, label = self.batch_shuffle(X,y, batch)
         for i in range(1,  epoches + 1):
             self.forward(data[self.passes], label[self.passes])
             self.backward(label[self.passes])
@@ -327,6 +327,10 @@ class model:
                 self.optimaizer.update_params(tunable_layer)
             self.optimaizer.post_update_params()
             if not epoches % print_every:
-                print(f'Epoches = {i},  Loss = {self.calculated_loss:.3f}, Learning_rate = {self.optimaizer.current_learning_rate :.3f}, Acc = {self.loss.accuracy(self.last_layer_output, y):.3f}')
+                print(f'Epoches = {i},  Loss = {self.calculated_loss:.3f}, Learning_rate = {self.optimaizer.current_learning_rate :.3f}, Acc = {self.loss.accuracy(self.last_layer_output, label[self.passes]):.3f}')
             self.passes += 1
+            if self.passes >= len(data):
+                self.passes = 0
         self.passes = 0
+
+print("here we go")
