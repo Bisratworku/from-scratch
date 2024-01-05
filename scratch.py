@@ -219,10 +219,10 @@ class Loss_CategoricalCrossentropy(Loss):
         self.dinputs = -y_true / dvalues
         self.dinputs = self.dinputs / samples
     def accuracy(self, pred, target):
-        prediction = np.argmax(pred, axis = 1)
+        self.prediction = np.argmax(pred, axis = 1)
         if len(target.shape) == 2:
             target = np.argmax(target, axis = 1)
-        output = np.mean(prediction == target)
+        output = np.mean(self.prediction == target)
         return output
         
 class Activation_Softmax_Loss_CategoricalCrossentropy():
@@ -254,8 +254,8 @@ class Loss_BinaryCrossentropy(Loss):
         self.dinputs = -(y_true / clipped_dvalues -(1 - y_true) / (1 - clipped_dvalues)) / outputs
         self.dinputs = self.dinputs / samples
     def accuracy(self, pred, target):
-        prediction = np.round(pred)
-        output = np.mean(prediction == target)
+        self.prediction = np.round(pred)
+        output = np.mean(self.prediction == target)
         return output
 class Loss_MeanSquaredError(Loss):
     def forward(self, y_pred, y_true):
@@ -284,7 +284,6 @@ class model:
         self.layers = []
         self.tunable_layers = []
         self.passes = 0
-        self.last_layer_output = self.layers[len(self.layers) - 1].output
     def add(self, layer):
         self.layers.append(layer)
         if hasattr(layer, 'weights'):
@@ -302,6 +301,7 @@ class model:
         for layer in self.layers:
             layer.forward(self.inputs)
             self.inputs = layer.output
+        self.last_layer_output = self.layers[len(self.layers) - 1].output
         self.calculated_loss = self.loss.calculate(self.last_layer_output, label) + self.loss.regularization_loss(self.tunable_layers) 
     def backward(self,label):
         self.loss.backward(self.last_layer_output, label)
@@ -310,10 +310,10 @@ class model:
             layer.backward(dinputs)
             dinputs = layer.dinputs       
     def batch_shuffle(self, data, label, batch):
-        #keys = np.array(range(len(data.shape[0])))
-        #np.random.shuffle(keys)
-        #data = data[keys]
-        #label = label[keys]
+        keys = np.array(range(data.shape[0]))
+        np.random.shuffle(keys)
+        data = data[keys]
+        label = label[keys]
         data_split = np.array_split(data, batch)
         label_split = np.array_split(label, batch)
         return data_split, label_split
@@ -332,5 +332,19 @@ class model:
             if self.passes >= len(data):
                 self.passes = 0
         self.passes = 0
-
-print("here we go")
+    def evaluate(self, X, y):
+        self.forward(X,y)
+        print(f'Loss = {self.calculated_loss:.3f}, Accuracy = {self.loss.accuracy(self.last_layer_output, y):.3f}')
+    def predict(self, input):
+        index = input
+        for layer in self.layers:
+            layer.forward(index)
+            index = layer.output
+        l_layer_output = self.layers[len(self.layers) - 1].output
+        if self.loss.__class__.__name__ == "Loss_CategoricalCrossentropy":
+            self.prediction = np.argmax(l_layer_output, axis = 1)
+            return self.prediction #=nb
+        elif self.loss.__class__.__name__ == "Loss_BinaryCrossentropy":
+            self.prediction = np.round(l_layer_output)
+        else:
+            return l_layer_output
